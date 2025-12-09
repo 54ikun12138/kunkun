@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}注册 | 校园消费分析系统{% endblock %}
+
+{% block content %}
+<section class="panel" style="max-width: 560px; margin: 0 auto;">
+  <h1 style="margin-top: 0; margin-bottom: 1rem;">新用户注册</h1>
+  <p style="margin: 0 0 1.5rem; color: var(--muted);">
+    注册后可立即登录系统，并上传消费 CSV 数据。
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+    <div>
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}
+      <small style="color: var(--muted);">{{ field.help_text|safe }}</small>
+      {% endif %}
+      {% if field.errors %}
+      <small style="color: var(--danger);">{{ field.errors|striptags }}</small>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary">注册并登录</button>
+  </form>
+  <p style="margin-top: 1.5rem; color: var(--muted);">
+    已有账号？
+    <a href="{% url 'MyApp:login' %}">返回登录</a>
+  </p>
+</section>
+{% endblock %}
+

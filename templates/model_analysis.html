@@ -1,0 +1,424 @@
+{% extends "base.html" %}
+{% block title %}模型分析 | 校园消费分析系统{% endblock %}
+{% block extra_head %}
+<script src="/static/echarts.min.js"></script>
+<style>
+  .model-section {
+    margin-bottom: 2rem;
+  }
+  .section-title {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .stat-card {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(56, 189, 248, 0.15);
+    border-radius: 14px;
+    padding: 1.2rem;
+    text-align: center;
+  }
+  .stat-card .label {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+  }
+  .stat-card .value {
+    font-size: 1.8rem;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .cluster-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.2rem;
+    margin-top: 1.5rem;
+  }
+  .cluster-card {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(56, 189, 248, 0.15);
+    border-radius: 16px;
+    padding: 1.5rem;
+  }
+  .cluster-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  }
+  .cluster-id {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .cluster-count {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .cluster-info {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+  }
+  .info-item {
+    background: rgba(15, 23, 42, 0.6);
+    padding: 0.6rem;
+    border-radius: 8px;
+  }
+  .info-item .label {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .info-item .value {
+    font-size: 1rem;
+    color: var(--text);
+    margin-top: 0.2rem;
+  }
+  .student-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 1rem;
+  }
+  .student-item {
+    padding: 0.5rem;
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 6px;
+    margin-bottom: 0.4rem;
+    font-size: 0.9rem;
+    display: flex;
+    justify-content: space-between;
+  }
+  .anomaly-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+  }
+  .anomaly-table th,
+  .anomaly-table td {
+    padding: 0.8rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  }
+  .anomaly-table th {
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 0.9rem;
+  }
+  .anomaly-table tbody tr:hover {
+    background: rgba(56, 189, 248, 0.08);
+  }
+  .anomaly-badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .anomaly-badge.anomaly {
+    background: rgba(248, 113, 113, 0.2);
+    color: #fca5a5;
+    border: 1px solid rgba(248, 113, 113, 0.4);
+  }
+  .anomaly-badge.normal {
+    background: rgba(74, 222, 128, 0.2);
+    color: #86efac;
+    border: 1px solid rgba(74, 222, 128, 0.4);
+  }
+  .score-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-family: monospace;
+  }
+  .score-low {
+    background: rgba(248, 113, 113, 0.15);
+    color: #fca5a5;
+  }
+  .score-medium {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fde047;
+  }
+  .score-high {
+    background: rgba(74, 222, 128, 0.15);
+    color: #86efac;
+  }
+  .chart-container {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(56, 189, 248, 0.15);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+  }
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: var(--muted);
+  }
+  .empty-state h3 {
+    color: var(--text);
+    margin-bottom: 0.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if not has_data %}
+<div class="panel">
+  <div class="empty-state">
+    <h3>暂无数据</h3>
+    <p>请先上传消费数据以进行模型分析</p>
+    <a href="{% url 'MyApp:upload_csv' %}" class="btn btn-primary" style="margin-top: 1rem;">上传数据</a>
+  </div>
+</div>
+{% else %}
+<!-- 统计概览 -->
+<div class="panel">
+  <div class="section-title">
+    <span>📊</span>
+    <span>分析概览</span>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="label">总学生数</div>
+      <div class="value">{{ total_students }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">聚类数量</div>
+      <div class="value">{{ cluster_results|length }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">异常学生</div>
+      <div class="value" style="color: var(--danger);">{{ anomaly_stats.anomaly_count }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">异常比例</div>
+      <div class="value">{{ anomaly_stats.anomaly_ratio|floatformat:1 }}%</div>
+    </div>
+  </div>
+</div>
+
+<!-- 聚类分布图 -->
+<div class="panel">
+  <div class="section-title">
+    <span>🎯</span>
+    <span>K-Means 聚类分析</span>
+  </div>
+  <div class="chart-container">
+    <div id="clusterChart" style="height: 300px;"></div>
+  </div>
+  
+  <div class="cluster-grid">
+    {% for cluster in cluster_results %}
+    <div class="cluster-card">
+      <div class="cluster-header">
+        <span class="cluster-id">聚类 {{ cluster.cluster_id|add:1 }}</span>
+        <span class="cluster-count">{{ cluster.student_count }} 名学生</span>
+      </div>
+      <div class="cluster-info">
+        <div class="info-item">
+          <div class="label">平均总消费</div>
+          <div class="value">¥ {{ cluster.avg_total_amount|floatformat:2 }}</div>
+        </div>
+        <div class="info-item">
+          <div class="label">平均消费次数</div>
+          <div class="value">{{ cluster.avg_transaction_count|floatformat:1 }} 次</div>
+        </div>
+      </div>
+      <div style="margin-top: 1rem;">
+        <div style="color: var(--muted); font-size: 0.85rem; margin-bottom: 0.5rem;">
+          学生列表 (显示前 {{ cluster.students|length }} 名，共 {{ cluster.total_students }} 名)
+        </div>
+        <div class="student-list">
+          {% for student_no in cluster.students %}
+          <div class="student-item">
+            <span>{{ student_no }}</span>
+            <span style="color: var(--muted); font-size: 0.85rem;">
+              {% for item in cluster.cluster_data %}
+                {% if item.student_no == student_no %}
+                  ¥{{ item.total_amount|floatformat:2 }} · {{ item.transaction_count }}次
+                {% endif %}
+              {% endfor %}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- 异常检测 -->
+<div class="panel">
+  <div class="section-title">
+    <span>🔍</span>
+    <span>孤立森林异常检测</span>
+  </div>
+  <p style="color: var(--muted); margin-bottom: 1rem;">
+    使用孤立森林算法检测消费行为异常的学生。异常分数越低，表示该学生的消费行为越异常。
+  </p>
+  
+  {% if anomaly_results %}
+  <div style="margin-top: 1.5rem;">
+    <h3 style="color: var(--danger); margin-bottom: 1rem;">异常学生列表 (共 {{ anomaly_results|length }} 名)</h3>
+    <div style="overflow-x: auto;">
+      <table class="anomaly-table">
+        <thead>
+          <tr>
+            <th>学号</th>
+            <th>总消费金额</th>
+            <th>平均消费</th>
+            <th>最大单笔</th>
+            <th>消费次数</th>
+            <th>商户多样性</th>
+            <th>工作日比例</th>
+            <th>异常分数</th>
+            <th>所属聚类</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in anomaly_results %}
+          <tr>
+            <td><strong>{{ item.student_no }}</strong></td>
+            <td>¥ {{ item.total_amount|floatformat:2 }}</td>
+            <td>¥ {{ item.avg_amount|floatformat:2 }}</td>
+            <td>¥ {{ item.max_amount|floatformat:2 }}</td>
+            <td>{{ item.transaction_count }}</td>
+            <td>{{ item.merchant_diversity }}</td>
+            <td>{{ item.weekday_ratio|floatformat:1 }}%</td>
+            <td>
+              <span class="score-badge score-low">
+                {{ item.anomaly_score|floatformat:3 }}
+              </span>
+            </td>
+            <td>聚类 {{ item.cluster|add:1 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 2rem;">
+    <p>未检测到异常学生</p>
+  </div>
+  {% endif %}
+  
+  {% if normal_results %}
+  <div style="margin-top: 2rem;">
+    <h3 style="color: var(--success); margin-bottom: 1rem;">正常学生样本 (显示前 {{ normal_results|length }} 名)</h3>
+    <div style="overflow-x: auto;">
+      <table class="anomaly-table">
+        <thead>
+          <tr>
+            <th>学号</th>
+            <th>总消费金额</th>
+            <th>平均消费</th>
+            <th>消费次数</th>
+            <th>异常分数</th>
+            <th>所属聚类</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in normal_results %}
+          <tr>
+            <td><strong>{{ item.student_no }}</strong></td>
+            <td>¥ {{ item.total_amount|floatformat:2 }}</td>
+            <td>¥ {{ item.avg_amount|floatformat:2 }}</td>
+            <td>{{ item.transaction_count }}</td>
+            <td>
+              <span class="score-badge score-high">
+                {{ item.anomaly_score|floatformat:3 }}
+              </span>
+            </td>
+            <td>聚类 {{ item.cluster|add:1 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- 特征说明 -->
+<div class="panel">
+  <div class="section-title">
+    <span>📋</span>
+    <span>特征说明</span>
+  </div>
+  <p style="color: var(--muted); margin-bottom: 1rem;">
+    模型使用了以下8个特征对学生消费行为进行分析：
+  </p>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+    {% for feature_name in feature_names %}
+    <div style="background: rgba(15, 23, 42, 0.6); padding: 1rem; border-radius: 10px; border-left: 3px solid var(--accent);">
+      <strong style="color: var(--accent);">{{ forloop.counter }}.</strong>
+      <span style="color: var(--text);">{{ feature_name }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+  // 聚类分布图
+  const clusterData = JSON.parse('{{ cluster_distribution|escapejs }}');
+
+  const chart = echarts.init(document.getElementById('clusterChart'), null, { useDirtyRect: true });
+  chart.setOption({
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c} 名学生 ({d}%)'
+    },
+    legend: {
+      bottom: 10,
+      textStyle: { color: '#94a3b8' }
+    },
+    series: [{
+      name: '聚类分布',
+      type: 'pie',
+      radius: ['40%', '70%'],
+      avoidLabelOverlap: false,
+      itemStyle: {
+        borderRadius: 10,
+        borderColor: '#0f172a',
+        borderWidth: 2
+      },
+      label: {
+        show: true,
+        formatter: '{b}\n{c}人 ({d}%)',
+        color: '#e2e8f0'
+      },
+      emphasis: {
+        label: {
+          show: true,
+          fontSize: 14,
+          fontWeight: 'bold'
+        }
+      },
+      data: clusterData.labels.map((label, idx) => ({
+        value: clusterData.counts[idx],
+        name: label
+      }))
+    }],
+    textStyle: { color: '#e2e8f0' }
+  });
+  
+  window.addEventListener('resize', () => chart.resize());
+</script>
+{% endif %}
+{% endblock %}
+

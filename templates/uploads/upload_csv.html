@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}上传数据 | 校园消费分析系统{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <h1 style="margin-top: 0;">上传消费 CSV 数据</h1>
+  <p style="color: var(--muted); margin-bottom: 1.5rem;">
+    {{ upload_hint }} 当前系统已有 <strong>{{ data_count }}</strong> 条记录。
+  </p>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% for field in form %}
+    <div>
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}
+      <small style="color: var(--muted);">{{ field.help_text }}</small>
+      {% endif %}
+      {% if field.errors %}
+      <small style="color: var(--danger);">{{ field.errors|striptags }}</small>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary">开始上传</button>
+  </form>
+  <div style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">
+    <p>字段映射要求：</p>
+    <ul>
+      <li>学工号、流水号、商户名称、交易事件、交易金额(元)、交易时间、入账日期、POS代码、流水标志</li>
+      <li>学工号长度为 6 的记录会视为教师消费并跳过</li>
+      <li>系统将按流水号去重，已有记录会自动更新</li>
+    </ul>
+  </div>
+</section>
+{% endblock %}
+

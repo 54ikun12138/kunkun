@@ -1,0 +1,544 @@
+{% extends "base.html" %}
+{% block title %}仪表盘 | 校园消费分析系统{% endblock %}
+{% block extra_head %}
+<script src="/static/echarts.min.js"></script>
+<script src="/static/china.js"></script>
+<style>
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 2fr 1.2fr;
+    gap: 1.2rem;
+  }
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+  }
+  .card-neo {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(56, 189, 248, 0.15);
+    border-radius: 18px;
+    padding: 1.2rem 1.4rem;
+    box-shadow: inset 0 0 15px rgba(59, 130, 246, 0.1),
+      0 15px 40px rgba(2, 6, 23, 0.6);
+    overflow: hidden;
+  }
+  .glow-text {
+    font-size: 2rem;
+    margin: 0.3rem 0 0;
+    color: var(--accent);
+  }
+  .chart-card {
+    min-height: 280px;
+    position: relative;
+  }
+  .chart-card.mini {
+    min-height: 210px;
+  }
+  .chart-empty {
+    margin-top: 1rem;
+    text-align: center;
+    color: var(--muted);
+  }
+  .event-empty {
+    margin-top: 1.5rem;
+    text-align: center;
+    color: #cbd5f5;
+  }
+  .event-empty h3 {
+    margin: 0;
+    font-size: 1.3rem;
+  }
+  .event-empty p {
+    margin: 0.3rem 0 0.4rem;
+    font-size: 2rem;
+    color: #38bdf8;
+  }
+  .event-empty small {
+    color: var(--muted);
+  }
+  .compare-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.8rem;
+    margin-top: 1rem;
+  }
+  .compare-card {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 14px;
+    padding: 0.8rem 1rem;
+  }
+  .compare-card h4 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .compare-card p {
+    margin: 0.3rem 0 0;
+    font-size: 1.4rem;
+  }
+  .top-list {
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .top-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+    font-size: 0.9rem;
+  }
+  .top-list li span {
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  #chinaMap {
+    height: 420px;
+  }
+  .table-panel table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .table-panel th,
+  .table-panel td {
+    padding: 0.6rem 0.4rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    font-size: 0.88rem;
+  }
+  .table-panel tbody tr:hover {
+    background: rgba(56, 189, 248, 0.08);
+  }
+  @media (max-width: 1200px) {
+    .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="panel" style="padding: 1.5rem;">
+  <div class="dashboard-grid">
+    <div class="stack">
+      <div class="card-neo">
+        <p style="margin: 0; color: var(--muted);">总流水笔数</p>
+        <p class="glow-text">{{ consumption_count }}</p>
+        <small style="color: var(--muted);">近 30 天实时入账</small>
+      </div>
+      <div class="card-neo">
+        <p style="margin: 0; color: var(--muted);">累计金额 (元)</p>
+        <p class="glow-text">{{ total_amount|floatformat:2 }}</p>
+        <small style="color: var(--muted);">平均客单 {{ avg_ticket }} 元</small>
+      </div>
+      <div class="card-neo">
+        <p style="margin: 0; color: var(--muted);">参与学生</p>
+        <p class="glow-text">{{ student_count }}</p>
+        <small style="color: var(--muted);">覆盖食堂/商户 {{ merchant_count }} 个</small>
+      </div>
+      <div class="card-neo chart-card">
+        <p style="margin: 0;">交易事件分布</p>
+        {% if event_chart_available %}
+        <div id="eventPie" style="height: 210px; margin-top: 0.8rem;"></div>
+        {% else %}
+        <div class="event-empty">
+          <h3>{{ event_stats.0.transaction_event|default:"暂无数据" }}</h3>
+          <p>{{ event_stats.0.count|default:0 }} 笔</p>
+          <small>当前仅存在单一交易事件，上传多样化数据以展示占比。</small>
+        </div>
+        {% endif %}
+      </div>
+      <div class="card-neo chart-card">
+        <p style="margin: 0;">商户品类贡献</p>
+        {% if category_stats %}
+        <div id="categoryChart" style="height: 220px; margin-top: 0.6rem;"></div>
+        {% else %}
+        <div class="chart-empty">暂无品类统计</div>
+        {% endif %}
+      </div>
+      <div class="card-neo chart-card mini">
+        <p style="margin: 0;">POS 终端活跃度</p>
+        {% if pos_code_stats %}
+        <div id="posChart" style="height: 180px; margin-top: 0.6rem;"></div>
+        {% else %}
+        <div class="chart-empty">暂无 POS 终端数据</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="stack">
+      <div class="card-neo chart-card" style="background: radial-gradient(circle at top, rgba(30,64,175,0.35), rgba(2,6,23,0.9));">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <p style="margin: 0;">商户能量云图</p>
+          <span style="color: var(--muted); font-size: 0.85rem;">自动剔除教师记录</span>
+        </div>
+        <div id="bubbleChart" style="height: 420px;"></div>
+      </div>
+      <div class="card-neo chart-card">
+        <p style="margin: 0;">30 天流水趋势</p>
+        <div id="trendChart" style="height: 260px; margin-top: 0.5rem;"></div>
+      </div>
+
+      <div class="card-neo chart-card mini">
+        <p style="margin: 0;">流水标志占比</p>
+        {% if flow_flag_stats %}
+        <div id="flowChart" style="height: 180px; margin-top: 0.6rem;"></div>
+        {% else %}
+        <div class="chart-empty">暂无流水状态数据</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="stack">
+      <div class="card-neo chart-card">
+        <p style="margin: 0;">入账日期消费 (元)</p>
+        <div id="dailyChart" style="height: 220px; margin-top: 0.6rem;"></div>
+      </div>
+      <div class="card-neo chart-card">
+        <p style="margin: 0;">热门商户 TOP8</p>
+        <div id="merchantBar" style="height: 260px; margin-top: 0.5rem;"></div>
+      </div>
+      <div class="card-neo chart-card mini">
+        <p style="margin: 0;">学生消费 TOP</p>
+        {% if student_top %}
+        <ul class="top-list">
+          {% for item in student_top %}
+          <li>
+            <strong>{{ item.student_no|default:"匿名" }}</strong>
+            <span>¥ {{ item.amount|floatformat:2 }} · {{ item.count }} 笔</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="chart-empty">暂无学生排名数据</div>
+        {% endif %}
+      </div>
+      <div class="card-neo table-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <p style="margin: 0;">实时流水</p>
+          <a href="{% url 'MyApp:upload_csv' %}" class="btn btn-ghost" style="padding:0.3rem 0.8rem;">上传数据</a>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>流水号</th>
+              <th>商户</th>
+              <th>金额</th>
+              <th>时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for record in latest_records %}
+            <tr>
+              <td>{{ record.transaction_serial }}</td>
+              <td>{{ record.merchant_name }}</td>
+              <td>{{ record.amount }}</td>
+              <td>{{ record.transaction_time|date:"m-d H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="4" style="text-align:center; color: var(--muted);">暂无数据</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const payload = JSON.parse('{{ chart_payload|escapejs }}');
+  const theme = {
+    textStyle: { color: '#e2e8f0' },
+  };
+
+  function initChart(id, option) {
+    const dom = document.getElementById(id);
+    if (!dom) return;
+    const chart = echarts.init(dom, null, { useDirtyRect: true });
+    chart.setOption(option);
+    window.addEventListener('resize', () => chart.resize());
+    return chart;
+  }
+
+  initChart('eventPie', {
+    tooltip: { trigger: 'item' },
+    series: [
+      {
+        name: '交易事件',
+        type: 'pie',
+        radius: ['45%', '70%'],
+        roseType: 'radius',
+        itemStyle: { borderRadius: 8, borderColor: '#0f172a', borderWidth: 2 },
+        data: payload.events.map((item) => ({
+          name: item.transaction_event,
+          value: item.count,
+        })),
+      },
+    ],
+    textStyle: theme.textStyle,
+  });
+
+  initChart('trendChart', {
+    tooltip: { trigger: 'axis' },
+    legend: {
+      data: ['金额', '笔数'],
+      textStyle: { color: '#cbd5f5' },
+    },
+    grid: { left: 40, right: 40, bottom: 30, top: 30 },
+    xAxis: {
+      type: 'category',
+      data: payload.trend.labels,
+      boundaryGap: false,
+      axisLine: { lineStyle: { color: '#1d4ed8' } },
+      axisLabel: { color: '#94a3b8' },
+    },
+    yAxis: [
+      {
+        type: 'value',
+        name: '金额(元)',
+        axisLine: { lineStyle: { color: '#1d4ed8' } },
+        axisLabel: { color: '#94a3b8' },
+        splitLine: { lineStyle: { color: 'rgba(148,163,184,0.2)' } },
+      },
+      {
+        type: 'value',
+        name: '笔数',
+        position: 'right',
+        axisLine: { lineStyle: { color: '#f472b6' } },
+        axisLabel: { color: '#f9a8d4' },
+        splitLine: { show: false },
+      },
+    ],
+    series: [
+      {
+        name: '金额',
+        type: 'line',
+        smooth: true,
+        lineStyle: { width: 3, color: '#60a5fa' },
+        symbol: 'circle',
+        symbolSize: 6,
+        areaStyle: {
+          opacity: 0.25,
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: '#60a5fa' },
+            { offset: 1, color: 'rgba(96,165,250,0)' },
+          ]),
+        },
+        data: payload.trend.amounts,
+      },
+      {
+        name: '笔数',
+        type: 'bar',
+        color: '#facc15',
+        itemStyle: {
+          borderRadius: [6, 6, 0, 0],
+          shadowBlur: 8,
+          shadowColor: 'rgba(250,204,21,0.5)',
+        },
+        yAxisIndex: 1,
+        data: payload.trend.counts,
+      },
+    ],
+    textStyle: theme.textStyle,
+  });
+
+  initChart('dailyChart', {
+    tooltip: { trigger: 'axis' },
+    xAxis: { type: 'category', data: payload.daily.labels },
+    yAxis: { type: 'value', name: '金额(元)' },
+    series: [
+      {
+        name: '金额',
+        type: 'line',
+        smooth: true,
+        areaStyle: { opacity: 0.15 },
+        data: payload.daily.amounts,
+      },
+    ],
+    textStyle: theme.textStyle,
+  });
+
+  initChart('merchantBar', {
+    grid: { left: 120, right: 20, top: 20, bottom: 20 },
+    xAxis: { type: 'value', axisLabel: { color: '#94a3b8' } },
+    yAxis: {
+      type: 'category',
+      data: payload.merchants.map((m) => m.merchant_name).reverse(),
+      axisLabel: { color: '#94a3b8' },
+    },
+    series: [
+      {
+        type: 'bar',
+        data: payload.merchants.map((m) => Number(m.amount)).reverse(),
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(1, 0, 0, 0, [
+            { offset: 0, color: '#38bdf8' },
+            { offset: 1, color: '#0f172a' },
+          ]),
+        },
+      },
+    ],
+    textStyle: theme.textStyle,
+  });
+
+  initChart('bubbleChart', {
+    tooltip: {
+      formatter: (p) => `${p.data.name}<br/>金额：${(p.data.value || 0).toFixed(2)} 元`,
+    },
+    series: [
+      {
+        type: 'graph',
+        layout: 'force',
+        roam: false,
+        force: {
+          repulsion: 180,
+          edgeLength: 20,
+          friction: 0.08,
+        },
+        data: payload.merchantBubbles.map((item, idx) => {
+          const size = Math.max(35, Math.min(110, item.value / 200));
+          const palette = ['#38bdf8', '#7c3aed', '#22d3ee', '#f472b6', '#facc15'];
+          return {
+            name: item.name,
+            value: item.value,
+            symbolSize: size,
+            label: {
+              color: '#cbd5f5',
+              fontSize: 12,
+            },
+            itemStyle: {
+              color: new echarts.graphic.RadialGradient(0.5, 0.4, 1, [
+                { offset: 0, color: '#ffffff20' },
+                { offset: 1, color: palette[idx % palette.length] },
+              ]),
+              shadowBlur: 20,
+              shadowColor: palette[idx % palette.length] + '70',
+            },
+          };
+        }),
+        links: [],
+      },
+    ],
+    textStyle: theme.textStyle,
+  });
+
+  if (payload.posCodes.length) {
+    initChart('posChart', {
+      grid: { left: 80, right: 20, top: 20, bottom: 20 },
+      xAxis: {
+        type: 'value',
+        axisLabel: { color: '#94a3b8' },
+        splitLine: { lineStyle: { color: 'rgba(148,163,184,0.2)' } },
+      },
+      yAxis: {
+        type: 'category',
+        data: payload.posCodes.map((item) => item.pos_code).reverse(),
+        axisLabel: { color: '#cbd5f5' },
+      },
+      series: [
+        {
+          type: 'bar',
+          data: payload.posCodes.map((item) => item.count).reverse(),
+          itemStyle: {
+            color: '#34d399',
+            borderRadius: [4, 4, 0, 0],
+          },
+        },
+      ],
+      textStyle: theme.textStyle,
+    });
+  }
+
+  if (payload.flowFlags.length) {
+    initChart('flowChart', {
+      tooltip: { trigger: 'item' },
+      series: [
+        {
+          type: 'pie',
+          radius: ['40%', '70%'],
+          avoidLabelOverlap: false,
+          labelLine: { length: 12, length2: 6 },
+          label: {
+            color: '#e2e8f0',
+            formatter: '{b}\n{d}%',
+          },
+          data: payload.flowFlags.map((item) => ({
+            name: item.flow_flag || '未知',
+            value: item.count,
+          })),
+        },
+      ],
+      textStyle: theme.textStyle,
+    });
+  }
+
+  if (payload.categories.length) {
+    initChart('categoryChart', {
+      tooltip: { trigger: 'item' },
+      legend: {
+        bottom: 0,
+        textStyle: { color: '#94a3b8', fontSize: 10 },
+      },
+      series: [
+        {
+          name: '品类贡献',
+          type: 'pie',
+          radius: ['40%', '75%'],
+          roseType: 'area',
+          data: payload.categories.map((item) => ({
+            name: item.name,
+            value: item.amount,
+          })),
+        },
+      ],
+      textStyle: theme.textStyle,
+    });
+  }
+
+  if (payload.heatmap.matrix.length) {
+    initChart('heatmapChart', {
+      tooltip: {
+        position: 'top',
+        formatter: (p) => `${payload.heatmap.days[p.value[0]]} ${p.value[1]}:00<br/>金额：${p.value[2].toFixed(2)} 元`,
+      },
+      grid: { left: 30, right: 10, bottom: 20, top: 20 },
+      xAxis: {
+        type: 'category',
+        data: payload.heatmap.days,
+        splitArea: { show: true },
+        axisLabel: { color: '#94a3b8' },
+      },
+      yAxis: {
+        type: 'category',
+        data: Array.from({ length: 24 }, (_, i) => `${i}:00`),
+        splitArea: { show: true },
+        axisLabel: { color: '#94a3b8' },
+      },
+      visualMap: {
+        min: 0,
+        max: Math.max(...payload.heatmap.matrix.map((item) => item[2])) || 1,
+        calculable: true,
+        orient: 'horizontal',
+        left: 'center',
+        bottom: 0,
+        textStyle: { color: '#cbd5f5' },
+      },
+      series: [
+        {
+          name: '金额',
+          type: 'heatmap',
+          data: payload.heatmap.matrix,
+          label: { show: false },
+        },
+      ],
+      textStyle: theme.textStyle,
+    });
+  }
+</script>
+{% endblock %}

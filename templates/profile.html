@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}个人信息 | 校园消费分析系统{% endblock %}
+
+{% block extra_head %}
+<style>
+  .profile-header {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  }
+  .avatar-container {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid var(--accent);
+    background: rgba(15, 23, 42, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .avatar-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .avatar-placeholder {
+    font-size: 3rem;
+    color: var(--muted);
+  }
+  .profile-info h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.8rem;
+  }
+  .profile-info p {
+    margin: 0.3rem 0;
+    color: var(--muted);
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .stat-card {
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(56, 189, 248, 0.15);
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+  }
+  .stat-card .value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
+  .stat-card .label {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.2rem;
+  }
+  .form-section {
+    margin-bottom: 2rem;
+  }
+  .form-section h3 {
+    margin: 0 0 1rem;
+    color: var(--accent);
+    font-size: 1.2rem;
+  }
+  .avatar-preview {
+    margin-top: 0.5rem;
+  }
+  .avatar-preview img {
+    max-width: 100px;
+    max-height: 100px;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <h1 style="margin-top: 0;">个人信息</h1>
+  
+  <div class="profile-header">
+    <div class="avatar-container">
+      {% if user.avatar %}
+        <img src="{{ user.avatar.url }}" alt="头像">
+      {% else %}
+        <div class="avatar-placeholder">👤</div>
+      {% endif %}
+    </div>
+    <div class="profile-info">
+      <h2>{{ user.display_name|default:user.username }}</h2>
+      <p>用户名：{{ user.username }}</p>
+      {% if user.email %}
+      <p>邮箱：{{ user.email }}</p>
+      {% endif %}
+      {% if user.phone %}
+      <p>电话：{{ user.phone }}</p>
+      {% endif %}
+      <p>注册时间：{{ user.date_joined|date:"Y-m-d H:i" }}</p>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="value">{{ user_consumption_count }}</div>
+      <div class="label">上传记录数</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">¥{{ user_total_amount|floatformat:2 }}</div>
+      <div class="label">关联消费总额</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">{{ user.last_login|date:"m-d"|default:"未登录" }}</div>
+      <div class="label">最后登录</div>
+    </div>
+  </div>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    
+    <div class="form-section">
+      <h3>基本信息</h3>
+      <div class="form-grid">
+        <div>
+          <label for="{{ form.display_name.id_for_label }}">{{ form.display_name.label }}</label>
+          {{ form.display_name }}
+          {% if form.display_name.errors %}
+          <small style="color: var(--danger);">{{ form.display_name.errors|striptags }}</small>
+          {% endif %}
+        </div>
+        <div>
+          <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+          {{ form.email }}
+          {% if form.email.errors %}
+          <small style="color: var(--danger);">{{ form.email.errors|striptags }}</small>
+          {% endif %}
+        </div>
+        <div>
+          <label for="{{ form.phone.id_for_label }}">{{ form.phone.label }}</label>
+          {{ form.phone }}
+          {% if form.phone.errors %}
+          <small style="color: var(--danger);">{{ form.phone.errors|striptags }}</small>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <h3>姓名</h3>
+      <div class="form-grid">
+        <div>
+          <label for="{{ form.first_name.id_for_label }}">{{ form.first_name.label }}</label>
+          {{ form.first_name }}
+          {% if form.first_name.errors %}
+          <small style="color: var(--danger);">{{ form.first_name.errors|striptags }}</small>
+          {% endif %}
+        </div>
+        <div>
+          <label for="{{ form.last_name.id_for_label }}">{{ form.last_name.label }}</label>
+          {{ form.last_name }}
+          {% if form.last_name.errors %}
+          <small style="color: var(--danger);">{{ form.last_name.errors|striptags }}</small>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <h3>头像</h3>
+      <div>
+        <label for="{{ form.avatar.id_for_label }}">{{ form.avatar.label }}</label>
+        {{ form.avatar }}
+        {% if form.avatar.help_text %}
+        <small style="color: var(--muted);">{{ form.avatar.help_text }}</small>
+        {% endif %}
+        {% if form.avatar.errors %}
+        <small style="color: var(--danger);">{{ form.avatar.errors|striptags }}</small>
+        {% endif %}
+        {% if user.avatar %}
+        <div class="avatar-preview">
+          <p style="color: var(--muted); margin: 0.5rem 0 0.3rem;">当前头像：</p>
+          <img src="{{ user.avatar.url }}" alt="当前头像">
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="form-section">
+      <h3>个人简介</h3>
+      <div>
+        <label for="{{ form.bio.id_for_label }}">{{ form.bio.label }}</label>
+        {{ form.bio }}
+        {% if form.bio.help_text %}
+        <small style="color: var(--muted);">{{ form.bio.help_text }}</small>
+        {% endif %}
+        {% if form.bio.errors %}
+        <small style="color: var(--danger);">{{ form.bio.errors|striptags }}</small>
+        {% endif %}
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">保存更改</button>
+  </form>
+</section>
+{% endblock %}
+
